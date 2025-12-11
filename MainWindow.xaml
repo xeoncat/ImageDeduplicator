@@ -1,0 +1,95 @@
+﻿<Window x:Class="ImageDeduplicator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Visually Similar Image Finder" Height="700" Width="1000">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Vertical" Margin="10">
+            <TextBlock Text="Search Folder Path:" Margin="0,0,0,5"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="SearchPathTextBox" Grid.Column="0" Text="C:\Your\Image\Folder" Padding="5"/>
+                <Button Grid.Column="1" Content="Browse..." Margin="5,0,0,0" Padding="10,5" Click="SelectFolder_Click"/>
+                <!--<Button x:Name="SearchButton" Grid.Column="2" Content="Find Similar Images" Margin="5,0,0,0" Padding="10,5" Click="Search_Click" FontWeight="Bold"/>-->
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <TextBlock Text="Threshold:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+            <Slider 
+            x:Name="ThresholdSlider" 
+            Minimum="1" 
+            Maximum="8" 
+            Value="1" 
+            Width="170"
+            IsSnapToTickEnabled="True" 
+            TickPlacement="BottomRight"
+            TickFrequency="1"
+            SmallChange="1"
+            LargeChange="5"
+            VerticalAlignment="Center"
+            PreviewMouseLeftButtonUp="ThresholdSlider_MouseLeftButtonUp"
+            />
+
+            <TextBlock 
+            Text="{Binding ElementName=ThresholdSlider, Path=Value, StringFormat=N0}" 
+            Width="30" 
+            FontWeight="Bold" 
+            VerticalAlignment="Center" 
+            Margin="10,0"
+            />
+
+            <TextBlock Text="(Lower number = stricter visual match)" Foreground="Gray" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,15,0,0">
+                <Button Content="Select All" Margin="0,0,10,0" Padding="10,5" Click="SelectAll_Click"/>
+                <Button Content="Select None" Margin="0,0,10,0" Padding="10,5" Click="SelectNone_Click"/>
+                <Button Content="Select Duplicates" Margin="0,0,10,0" Padding="10,5" Click="SelectDuplicatesOnly_Click"/>
+                <Button Content="Delete Selected (to Recycle Bin)" Padding="10,5" Background="Red" Foreground="White" Click="DeleteSelected_Click"/>
+            </StackPanel>
+        </StackPanel>
+
+        <ListView Grid.Row="1" x:Name="ImagesListView" ItemsSource="{Binding SimilarImages}" Margin="10" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel IsItemsHost="True"/>
+                </ItemsPanelTemplate>
+            </ListView.ItemsPanel>
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Border BorderBrush="LightGray" BorderThickness="1" Margin="5" Width="200" Height="270" VerticalAlignment="Top">
+                        <StackPanel>
+                            <CheckBox IsChecked="{Binding IsSelected}" Margin="5" Content="Delete?" FontWeight="Bold" HorizontalAlignment="Right"/>
+
+                            <Image Width="180" Height="150" Stretch="UniformToFill" Margin="10">
+                                <Image.Source>
+                                    <BitmapImage UriSource="{Binding ImageSourceUri}" CacheOption="OnLoad"/>
+                                </Image.Source>
+                            </Image>
+
+                            <TextBlock Text="{Binding FileName}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="5,0"/>
+                            <TextBlock Text="{Binding DisplaySize}" Margin="5,0"/>
+                            <TextBlock Text="{Binding GroupId}" Margin="5,0" Foreground="Blue"/>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <TextBlock Grid.Row="2" x:Name="StatusText" Margin="10,5" Text="Status: Ready." FontWeight="Normal" Background="#EEE"/>
+    </Grid>
+</Window>
