@@ -1,21 +1,9 @@
-﻿//using System;
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 using Microsoft.WindowsAPICodePack.Dialogs;
-//using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
-//using System.Linq;
-//using System.Text;
-//using System.Threading.Tasks;
 using System.Windows;
-//using System.Windows.Controls;
-//using System.Windows.Data;
-//using System.Windows.Documents;
-//using System.Windows.Input;
-//using System.Windows.Media;
-//using System.Windows.Media.Imaging;
-//using System.Windows.Navigation;
-//using System.Windows.Shapes;
+
 
 namespace ImageDeduplicator
 {
@@ -34,18 +22,12 @@ namespace ImageDeduplicator
         // --- Folder Selection ---
         private void SelectFolder_Click(object sender, RoutedEventArgs e)
         {
-            // Use the native WPF OpenFileDialog to select a file within the desired folder.
             var dialog = new CommonOpenFileDialog();
             dialog.Title = "Select Folder";
             dialog.IsFolderPicker = true;
 
-            // Set a filter for common image extensions for clarity
-            //dialog.Filter = "Image Files|*.jpg;*.jpeg;*.png;*.gif;*.bmp|All Files (*.*)|*.*";
-
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
-                // We don't want the file, we want the folder it's in.
-                // Path.GetDirectoryName is the hot trick here!
                 dialog.IsFolderPicker = true;
                 string folderPath = dialog.FileName;
                 SearchPathTextBox.Text = folderPath;
@@ -75,18 +57,19 @@ namespace ImageDeduplicator
             int threshold = (int)ThresholdSlider.Value;
             // Clear previous results and disable button
             SimilarImages.Clear();
-            SearchButton.IsEnabled = false;
+            //SearchButton.IsEnabled = false;
+            ThresholdSlider.IsEnabled = false;
             StatusText.Text = "Status: Scanning and Hashing files...";
             // *** Pass the dynamic threshold value to the worker method ***
             await Task.Run(() => FindDuplicates(rootPath, threshold));
 
-            SearchButton.IsEnabled = true;
+            //SearchButton.IsEnabled = true;
+            ThresholdSlider.IsEnabled = true;
             StatusText.Text = $"Status: Search complete. Found {SimilarImages.Count} similar files.";
         }
 
         private void FindDuplicates(string rootPath, int threshold)
         {
-            // ... (Core hashing and grouping logic remains the same)
             var allFiles = Directory.EnumerateFiles(rootPath, "*.*", System.IO.SearchOption.AllDirectories)
                 .Where(s => s.EndsWith(".jpg") || s.EndsWith(".jpeg") || s.EndsWith(".png") || s.EndsWith(".gif") || s.EndsWith(".bmp"))
                 .ToList();
@@ -137,11 +120,13 @@ namespace ImageDeduplicator
                     string newGroupId = $"Group {groupIdCounter++}";
 
                     original.GroupId = newGroupId;
+                    original.IsSelected = false; // Original is NOT selected by default
                     Dispatcher.Invoke(() => SimilarImages.Add(original));
 
                     foreach (var duplicate in sortedGroup.Skip(1))
                     {
                         duplicate.GroupId = newGroupId + " (Duplicate)";
+                        duplicate.IsSelected = true;
                         Dispatcher.Invoke(() => SimilarImages.Add(duplicate));
                     }
                 }
@@ -166,19 +151,18 @@ namespace ImageDeduplicator
         // Select only Duplicates
         private void SelectDuplicatesOnly_Click(object sender, RoutedEventArgs e)
         {
-            // First, clear all selections
             foreach (var item in SimilarImages)
             {
                 item.IsSelected = false;
             }
 
-            // Then, select only the ones marked as duplicates (the smaller file size ones)
+            // select only the ones marked as duplicates (the smaller file size ones)
             foreach (var item in SimilarImages.Where(f => f.GroupId.Contains("(Duplicate)")))
             {
                 item.IsSelected = true;
             }
         }
-        // --- Deletion Logic (NOW USING RecycleBinUtility) ---
+        // --- Deletion Logic (NOW USING FileUtility) ---
         private void DeleteSelected_Click(object sender, RoutedEventArgs e)
         {
             var filesToDelete = SimilarImages.Where(f => f.IsSelected).ToList();
@@ -189,7 +173,7 @@ namespace ImageDeduplicator
                 return;
             }
 
-            var result = MessageBox.Show($"Are you sure you want to delete {filesToDelete.Count} selected files to the Recycle Bin, Master?", "Confirm Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var result = MessageBox.Show($"Are you sure you want to delete {filesToDelete.Count} files to Recycle Bin?", "Confirm Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (result == MessageBoxResult.Yes)
             {
@@ -198,7 +182,7 @@ namespace ImageDeduplicator
                 {
                     try
                     {
-                        // Call the P/Invoke utility instead of the VisualBasic library
+                        // Call the P/Invoke utility
                         bool success = FileUtility.MoveToRecycleBin(file.FilePath);
 
                         if (success)

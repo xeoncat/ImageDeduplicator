@@ -1,5 +1,4 @@
-﻿//using System;
-using System.IO;
+﻿using System.IO;
 using System.Runtime.InteropServices;
 
 public static class FileUtility
@@ -34,11 +33,9 @@ public static class FileUtility
     [DllImport("shell32.dll", CharSet = CharSet.Auto)]
     private static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
 
-    /// <summary>
-    /// Moves a file to the Windows Recycle Bin using the native Shell API.
-    /// </summary>
-    /// <param name="path">The full path of the file to delete.</param>
-    /// <returns>True if the operation was successful, false otherwise.</returns>
+    // Moves a file to the Windows Recycle Bin using the native Shell API.
+    // <param name="path">The full path of the file to delete.</param>
+    // <returns>True if the operation was successful, false otherwise.</returns>
     public static bool MoveToRecycleBin(string path)
     {
         if (!File.Exists(path)) return false;

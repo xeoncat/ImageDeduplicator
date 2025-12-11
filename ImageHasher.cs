@@ -1,21 +1,16 @@
 ﻿using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-//using System.Collections.Generic;
 using System.IO;
-//using System.Linq;
 
 // This class contains the logic for Perceptual Hashing (specifically, the Average Hash or aHash) and calculating the Hamming Distance.
-
 public static class ImageHasher
 {
     // The size for the scaled-down image used for hashing (8x8 = 64 pixels, 64-bit hash)
     private const int HashSize = 8;
     private const int TotalPixels = HashSize * HashSize;
 
-    /// <summary>
-    /// Computes the 64-bit Average Hash (aHash) for an image file.
-    /// </summary>
+    // Computes the 64-bit Average Hash (aHash) for an image file.
     public static ulong ComputeAverageHash(string path)
     {
         if (!File.Exists(path)) return 0;
@@ -70,10 +65,7 @@ public static class ImageHasher
             return 0;
         }
     }
-
-    /// <summary>
-    /// Calculates the Hamming Distance (number of differing bits) between two hashes.
-    /// </summary>
+    // Calculates the Hamming Distance (number of differing bits) between two hashes.
     public static int CalculateHammingDistance(ulong hash1, ulong hash2)
     {
         ulong xorValue = hash1 ^ hash2;
