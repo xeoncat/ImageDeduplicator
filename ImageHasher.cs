@@ -10,7 +10,7 @@ public static class ImageHasher
     private const int HashSize = 8;
     private const int TotalPixels = HashSize * HashSize;
 
-    // Computes the 64-bit Average Hash (aHash) for an image file.
+    /* Computes the 64-bit Average Hash (aHash) for an image file.
     public static ulong ComputeAverageHash(string path)
     {
         if (!File.Exists(path)) return 0;
@@ -64,7 +64,8 @@ public static class ImageHasher
             // Catch other IO or general errors
             return 0;
         }
-    }
+    }*/
+
     // Calculates the Hamming Distance (number of differing bits) between two hashes.
     public static int CalculateHammingDistance(ulong hash1, ulong hash2)
     {
@@ -79,5 +80,44 @@ public static class ImageHasher
         }
 
         return distance;
+    }
+
+    public static (ulong Hash, int Width, int Height) GetImageMetadata(string path)
+    {
+        try
+        {
+            using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                using (var image = Image.Load<L8>(fs))
+                {
+                    int originalWidth = image.Width;
+                    int originalHeight = image.Height;
+
+                    image.Mutate(x => x.Resize(8, 8)); // Standard Perceptual Hash logic (resize to 8x8)
+
+                    ulong hash = 0;
+                    long sum = 0;
+                    for (int y = 0; y < 8; y++)
+                    {
+                        for (int x = 0; x < 8; x++)
+                        {
+                            sum += image[x, y].PackedValue;
+                        }
+                    }
+
+                    long average = sum / 64;
+                    for (int i = 0; i < 64; i++)
+                    {
+                        if (image[i % 8, i / 8].PackedValue >= average)
+                        {
+                            hash |= (1UL << i);
+                        }
+                    }
+
+                    return (hash, originalWidth, originalHeight);
+                }
+            }
+        }
+        catch { return (0, 0, 0); }
     }
 }
