@@ -38,6 +38,18 @@ public static class FileUtility
     // <returns>True if the operation was successful, false otherwise.</returns>
     public static bool MoveToRecycleBin(string path)
     {
+        string safePath = path; // 1. Strip the URI if it exists
+        if (safePath.StartsWith("file:///", StringComparison.OrdinalIgnoreCase))
+        {
+            safePath = safePath[8..].Replace('/', '\\');
+        }
+
+        // 2. Apply the Long Path prefix for Windows API safety
+        if (!safePath.StartsWith(@"\\?\"))
+        {
+            safePath = @"\\?\" + safePath;
+        }
+
         if (!File.Exists(path)) return false;
 
         // The pFrom string must be double-null terminated for the API.

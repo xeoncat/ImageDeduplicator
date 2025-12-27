@@ -3,7 +3,6 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -82,6 +81,20 @@ namespace ImageDeduplicator
             }
         }
         private void Minimize_Click(object sender, RoutedEventArgs e) => this.WindowState = WindowState.Minimized;
+        private void Maximize_Click(object sender, RoutedEventArgs e)
+        {
+            if (this.WindowState == WindowState.Maximized)
+            {
+                this.WindowState = WindowState.Normal;
+                MaximizeButton.Content = "🗖"; // Restore icon
+            }
+            else
+            {
+                this.WindowState = WindowState.Maximized;
+                MaximizeButton.Content = "🗗"; // Maximize icon (stacked boxes)
+            }
+        }
+
         private void Close_Click(object sender, RoutedEventArgs e) => this.Close();
 
         // --- Folder Selection ---
@@ -105,9 +118,7 @@ namespace ImageDeduplicator
 
         private void ThresholdSlider_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            // We call the existing Search_Click logic to initiate the re-scan.
-            // This is the cleanest way because Search_Click already initializes 
-            // the threshold and path variables for us.
+            // We call the existing Search_Click logic to initiate the re-scan. This is the cleanest way because Search_Click already initializes The threshold and path variables for us.
             Search_Click(sender, null);
         }
 
@@ -131,13 +142,13 @@ namespace ImageDeduplicator
             }
 
             SimilarImages.Clear();
+            List<ImageFile> results = new();
             SearchButton.IsEnabled = false;
             ThresholdSlider.IsEnabled = false;
             SelectNoneButton.IsEnabled = false;
             SelectDupButton.IsEnabled = false;
             DeleteButton.IsEnabled = false;
-            StatusText.Text = "Status: Scanning and Hashing files...";
-            List<ImageFile> results = new();
+            StatusText.Text = "Scanning and Hashing files...";
 
             try
             {
@@ -154,22 +165,20 @@ namespace ImageDeduplicator
             }
             finally
             {
+                lock (_collectionLock)
+                {
+                    foreach (var item in results)
+                    {
+                        SimilarImages.Add(item);
+                    }
+                }
                 SearchButton.IsEnabled = true;
                 ThresholdSlider.IsEnabled = true;
                 SelectNoneButton.IsEnabled = true;
                 SelectDupButton.IsEnabled = true;
                 DeleteButton.IsEnabled = true;
+                StatusText.Text = $"Search complete. Found {SimilarImages.Count} similar files.";
             }
-
-            lock (_collectionLock)
-            {
-                foreach (var item in results)
-                {
-                    SimilarImages.Add(item);
-                }
-            }
-            //Dispatcher.Invoke(() => CollectionViewSource.GetDefaultView(SimilarImages).Refresh());
-            StatusText.Text = $"Status: Search complete. Found {SimilarImages.Count} similar files.";
         }
 
         private List<ImageFile> FindDuplicates(string rootPath, int threshold)
@@ -182,19 +191,21 @@ namespace ImageDeduplicator
 
             var imageList = allFiles.Select(file =>
             {
-                //Dispatcher.Invoke(() => StatusText.Text = $"Status: Hashing {Path.GetFileName(file)}...");
+                Dispatcher.Invoke(() => StatusText.Text = $"Hashing {Path.GetFileName(file)}...");
                 var metadata = ImageHasher.GetImageMetadata(file);
+                var info = new FileInfo(file);
 
                 return new ImageFile
                 {
                     FilePath = file,
-                    FileSize = new FileInfo(file).Length,
-                    Hash = metadata.Hash,
+                    FileSize = info.Length,
+                    DateCreated = info.CreationTime,
+                    HashData = metadata.Hash,
                     Width = metadata.Width,
                     Height = metadata.Height
                 };
             })
-            .Where(f => f.Hash != 0)
+            .Where(f => f.HashData.Length > 0)
             .ToList();
 
             var alreadyGrouped = new HashSet<ImageFile>();
@@ -213,7 +224,7 @@ namespace ImageDeduplicator
                     var file2 = imageList[j];
                     if (alreadyGrouped.Contains(file2)) continue;
 
-                    int distance = ImageHasher.CalculateHammingDistance(file1.Hash, file2.Hash);
+                    int distance = ImageHasher.CalculateHammingDistance(file1.HashData, file2.HashData);
 
                     if (distance <= threshold)
                     {
@@ -229,14 +240,17 @@ namespace ImageDeduplicator
                     var sortedGroup = currentGroup
                         .OrderByDescending(f => f.TotalPixels)
                         .ThenByDescending(f => f.FileSize)
+                        .ThenBy(f => f.DateCreated)
                         .ToList();
 
                     var original = sortedGroup.First();
                     original.Thumbnail = LoadImageWithoutLocking(original.FilePath);
-                    original.IsDuplicate = false; // Initializing as the master copy
+                    original.IsDuplicate = false;
+
                     string newGroupId = $"Group {groupIdCounter++}";
                     original.GroupId = newGroupId;
                     original.IsSelected = false; // Original is safe!
+                    
                     foundDuplicates.Add(original);
                     //Dispatcher.Invoke(() => SimilarImages.Add(original));
 
@@ -278,8 +292,8 @@ namespace ImageDeduplicator
                 item.IsSelected = true;
             }
         }
-        // --- Deletion Logic (NOW USING FileUtility) ---
-        private void DeleteSelected_Click(object sender, RoutedEventArgs e)
+        // --- Deletion Logic ---
+        private async void DeleteSelected_Click(object sender, RoutedEventArgs e)
         {
             var filesToDelete = SimilarImages.Where(f => f.IsSelected).ToList();
 
@@ -289,38 +303,66 @@ namespace ImageDeduplicator
                 return;
             }
 
-            var result = MessageBox.Show($"Are you sure you want to delete {filesToDelete.Count} files to Recycle Bin?", "Confirm Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
-            {
+            //var result = MessageBox.Show($"Are you sure you want to delete {filesToDelete.Count} files to Recycle Bin?", "Confirm Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            //if (result == MessageBoxResult.Yes)
+            //{
                 int deletedCount = 0;
-                foreach (var file in filesToDelete)
+                int accessFailCount = 0;
+                await Task.Run(() =>
                 {
-                    try
+                    foreach (var file in filesToDelete)
                     {
-                        // Call the P/Invoke utility
-                        bool success = FileUtility.MoveToRecycleBin(file.FilePath);
-
-                        if (success)
+                        if (FileUtility.MoveToRecycleBin(file.FilePath))
                         {
                             // Remove from the display list only if deletion was successful
-                            SimilarImages.Remove(file);
+                            lock (_collectionLock)
+                            {
+                                SimilarImages.Remove(file);
+                            }
                             deletedCount++;
                         }
                         else
                         {
-                            // Handle failure of the API call
-                            MessageBox.Show($"Could not delete file: {file.FileName}. The file might be in use or access was denied.", "Deletion Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            accessFailCount++;
                         }
                     }
-                    catch (System.Exception ex)
-                    {
-                        MessageBox.Show($"An unexpected error occurred while deleting {file.FileName}.\nError: {ex.Message}", "Deletion Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
+                    PruneGhostGroups();
+                });
+
+                if (accessFailCount > 0)
+                {
+                    StatusText.Text = $"{deletedCount} files moved to the Recycle Bin. {accessFailCount} file access failures";
                 }
-                StatusText.Text = $"Status: Successfully moved {deletedCount} files to the Recycle Bin.";
+                else
+                {
+                    StatusText.Text = $"{deletedCount} files moved to the Recycle Bin.";
+                }
+            //}
+        }
+
+        private void PruneGhostGroups()
+        {
+            lock (_collectionLock)
+            {
+                // Identify group IDs that now have only one member
+                var groupsToDissolve = SimilarImages
+                    .GroupBy(f => f.GroupId)
+                    .Where(g => g.Count() <= 1)
+                    .Select(g => g.Key)
+                    .ToList();
+
+                // Remove the "Lonely Originals" from the UI
+                var itemsToRemove = SimilarImages
+                    .Where(f => groupsToDissolve.Contains(f.GroupId))
+                    .ToList();
+
+                foreach (var item in itemsToRemove)
+                {
+                    SimilarImages.Remove(item);
+                }
             }
         }
+
         private void Image_MouseDown(object sender, MouseButtonEventArgs e)
         {
             // Initialize double-click detection (Left button, ClickCount 2)
@@ -351,11 +393,10 @@ namespace ImageDeduplicator
 
         private BitmapImage LoadImageWithoutLocking(string path)
         {
-            // Initialize a bitmap that loads into memory and releases the file
-            var bitmap = new BitmapImage();
+            var bitmap = new BitmapImage(); // Initialize a bitmap that loads into memory and releases the file
             bitmap.BeginInit();
             bitmap.UriSource = new Uri(path);
-            bitmap.CacheOption = BitmapCacheOption.OnLoad; // This is the critical initialization
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
             bitmap.EndInit();
             bitmap.Freeze(); // Makes it safe for the UI thread
             return bitmap;

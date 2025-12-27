@@ -8,7 +8,7 @@ public class ImageFile : INotifyPropertyChanged
     private bool _isSelected = true;
 
     public string FilePath { get; set; } = string.Empty;
-    public ulong Hash { get; set; }
+    public byte[] HashData { get; set; } = Array.Empty<byte>();
     public long FileSize { get; set; }
     public string GroupId { get; set; } = string.Empty;
 
@@ -16,7 +16,8 @@ public class ImageFile : INotifyPropertyChanged
     public int Height { get; set; }
     public long TotalPixels => (long)Width * Height;
     public string Dimensions => $"{Width} x {Height}";
-
+    public DateTime DateCreated { get; set; }
+    
     public string? FileName => Path.GetFileName(FilePath);
     public string DisplaySize => $"{(FileSize / 1024.0 / 1024.0):F2} MB";
     public string ImageSourceUri => $"file:///{FilePath?.Replace('\\', '/')}";
