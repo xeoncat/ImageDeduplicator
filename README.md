@@ -1,7 +1,7 @@
 
 <h3>Image Deduplicator</h3>
 
-<p align="center"><img src="images/screen.png" width="900" title="Image Deduplicator"></p>
+<p align="center"><img src="images/screen1.png" width="900" title="Image Deduplicator"></p>
 
 With the repost culture and the ever changing storage file names, it has become increasingly difficult to not download duplicate images and I couldn't find a free duplicate image app. This is an app that attempts to find duplicate image by their visual content rather than file similarity. It is written in WPF C# and compiles in Visual Studio Community 2022. Done with the help of AI as I am not a coder.
 
